@@ -2,7 +2,7 @@
 
 data Desicion = Edible | Poisnous
 
-data Node = Question (String , [(Char, Node)]) | Desicion
+data Tree = Question (String , [(Char, Tree)]) | Desicion
 
 question_names :: [String]
 question_names = [
@@ -78,22 +78,27 @@ answer_name = [
     ["black","brown","buff","chocolate","green","orange","purple","white","yellow"],
     ["abundant","clustered","numerous","scattered","several","solitary"],
     ["grasses","leaves","meadows","paths","urban","waste","woods"]]
+
+answer_tag_name :: [[(String, Char)]]
+answer_tag_name = 
     
+parseLine :: [Char] -> (Desicion, [(String, Char)])
+parseLine (x:xs) 
+  | x == 'e'  = (Edible,   zip question_names xs)
+  | otherwise = (Poisnous, zip question_names xs)
+
+prepData :: [[Char]] -> [(Desicion, [(String, Char)])]
+prepData dat = map parseLine dat 
+
 -- Funcio: splitLine
 -- -----------------
 -- Per parsejar l'entrada passa d'una linia a un array de chars
 
-splitLine :: String -> [Char]
-splitLine "" = []
-splitLine (x:xs)
+splitLine :: [Char] -> [Char]
+splitLine [] = []
+splitLine (x:xs) 
   | x == ','  = splitLine xs
   | otherwise = x : splitLine xs
-
---myLines :: String -> [String]
---myLines "" = [""]
---myLines (x:xs)
---  | x == '\n' = "" : myLines xs
---  | otherwise = (x : head res) : tail res where res = myLines xs
 
 --
 -- Funcio: splitDara
@@ -103,10 +108,16 @@ splitLine (x:xs)
 
 splitData :: String -> [[Char]]
 splitData ss = map splitLine (lines ss)
+
+qa_names :: [(String, [String])]
+qa_names = zip question_names answer_name
     
+makeTree :: [(Desicion, [(String, Char)] -> [String] -> Tree
+makeTree dat mask = 
+
 main :: IO ()
 main = do
     contents <- readFile "agaricus-lepiota.data"
     let entries = splitData contents
-    print $ show entries
-    
+    let dat = prepData entries
+    makeTree dat emptyTree []
