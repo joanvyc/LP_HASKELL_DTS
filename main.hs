@@ -110,13 +110,17 @@ splitData :: String -> [[Char]]
 splitData ss = map splitLine (lines ss)
 
 qa_names :: [(String, [String])]
-qa_names = zip question_names answer_name
-    
+qa_names = zip question_names answer_name    
+
+bestQuestion :: [(Desicion, [(String, Char)])] -> (String, [(Char, Desicion, Real)])
+bestQuestion dat = map (\(p, as) -> (q, map (\a -> (q, , ) where fdat = [x | x <- dat, elem (q,a) (snd x)]) as) qa_names
+
 makeTree :: [(Desicion, [(String, Char)])] -> [(String, Char)] -> Tree
-makeTree dat mask 
-  | 
-  |
-  where fdat = [ x | x <- dat, not $ elem True (map (flip elem (snd x)) mask) ]
+makeTree dat mask = Question (q , map (\ x -> case x of
+                                         (_,d,0) -> d
+                                         (a,_,p) -> (a, makeTree dat (q,a):mask)
+                                         ) as )
+  where (q, as) = bestQuestion [ x | x <- dat, not $ elem False (map (flip elem (snd x)) mask) ]
 
 main :: IO ()
 main = do
