@@ -80,7 +80,7 @@ answer_name = [
     ["grasses","leaves","meadows","paths","urban","waste","woods"]]
 
 answer_name_tag :: [[(String, Char)]]
-answer_name_tag = map (\a <- zip (fst a) (fst a)) $ zip answer_name answer_tags
+answer_name_tag = map (\a -> zip (fst a) (fst a)) $ zip answer_name answer_tags
     
 parseLine :: [Char] -> (Desicion, [(String, Char)])
 parseLine (x:xs) 
@@ -109,11 +109,28 @@ splitLine (x:xs)
 splitData :: String -> [[Char]]
 splitData ss = map splitLine (lines ss)
 
-qa_names :: [(String, [String])]
-qa_names = zip question_names answer_name    
+qa_names :: [(String, [Char])]
+qa_names = zip question_names answer_tags 
+
+calcFactor :: [(Desicion, [(String, Char)])] -> (Desicion, Real)
+calcFactor dat 
+  | ((length dat)/2) > length ledat = (Poisnous, (ldat Poisnous)/((ldat Edible)+(ldat Poisnous)))
+  | otherwise                       = (Edible,   (ldat Edible  )/((ldat Edible)+(ldat Poisnous)))
+  where 
+    ldat d = fromIntegral $ length [ x | x <- dat, fst x == d] 
+
+ord3Tup (_,_,a) (_,_,b)
+  | a > b = GT
+  | a < b = LT
+  | otherwise = EQ
 
 bestQuestion :: [(Desicion, [(String, Char)])] -> (String, [(Char, Desicion, Real)])
-bestQuestion dat = map (\(p, as) -> (q, map (\a -> (q, , ) where fdat = [x | x <- dat, elem (q,a) (snd x)]) as) qa_names
+bestQuestion dat = 
+  head $ sortBy ord3Tup map (
+        \(p, as) -> (q, map (
+                              \a -> let fdat = calcFactor [x | x <- dat, elem (q,a) (snd x)] in (q, fst fdat, snd fdat)
+                            ) as
+      ) qa_names
 
 makeTree :: [(Desicion, [(String, Char)])] -> [(String, Char)] -> Tree
 makeTree dat mask = Question (q , map (\ x -> case x of
@@ -127,4 +144,5 @@ main = do
     contents <- readFile "agaricus-lepiota.data"
     let entries = splitData contents
     let dat = prepData entries
-    makeTree dat emptyTree []
+    let tree= makeTree dat emptyTree []
+    print $ show tree
