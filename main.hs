@@ -79,8 +79,8 @@ answer_name = [
     ["abundant","clustered","numerous","scattered","several","solitary"],
     ["grasses","leaves","meadows","paths","urban","waste","woods"]]
 
-answer_tag_name :: [[(String, Char)]]
-answer_tag_name = 
+answer_name_tag :: [[(String, Char)]]
+answer_name_tag = map (\a <- zip (fst a) (fst a)) $ zip answer_name answer_tags
     
 parseLine :: [Char] -> (Desicion, [(String, Char)])
 parseLine (x:xs) 
@@ -112,8 +112,11 @@ splitData ss = map splitLine (lines ss)
 qa_names :: [(String, [String])]
 qa_names = zip question_names answer_name
     
-makeTree :: [(Desicion, [(String, Char)] -> [String] -> Tree
-makeTree dat mask = 
+makeTree :: [(Desicion, [(String, Char)])] -> [(String, Char)] -> Tree
+makeTree dat mask 
+  | 
+  |
+  where fdat = [ x | x <- dat, not $ elem True (map (flip elem (snd x)) mask) ]
 
 main :: IO ()
 main = do
