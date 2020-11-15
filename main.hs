@@ -1,4 +1,4 @@
---import Data.List.Split
+import Data.List
 
 data Desicion = Edible | Poisnous
 
@@ -79,8 +79,9 @@ answer_name = [
     ["abundant","clustered","numerous","scattered","several","solitary"],
     ["grasses","leaves","meadows","paths","urban","waste","woods"]]
 
-answer_name_tag :: [[(String, Char)]]
-answer_name_tag = map (\a -> zip (fst a) (fst a)) $ zip answer_name answer_tags
+
+--answer_name_taganswer_name_tag :: [[(String, Char)]]
+--answer_name_tag = map (\a -> map (\b -> (fst a, b)) (snd a)) (zip answer_name answer_tags)
     
 parseLine :: [Char] -> (Desicion, [(String, Char)])
 parseLine (x:xs) 
@@ -112,10 +113,10 @@ splitData ss = map splitLine (lines ss)
 qa_names :: [(String, [Char])]
 qa_names = zip question_names answer_tags 
 
-calcFactor :: [(Desicion, [(String, Char)])] -> (Desicion, Real)
+calcFactor :: [(Desicion, [(String, Char)])] -> (Desicion, Float)
 calcFactor dat 
-  | ((length dat)/2) > length ledat = (Poisnous, (ldat Poisnous)/((ldat Edible)+(ldat Poisnous)))
-  | otherwise                       = (Edible,   (ldat Edible  )/((ldat Edible)+(ldat Poisnous)))
+  | ((length dat)/2) > (ldat Poisnous) = (Poisnous, (ldat Poisnous)/((ldat Edible)+(ldat Poisnous)))
+  | otherwise                          = (Edible,   (ldat Edible  )/((ldat Edible)+(ldat Poisnous)))
   where 
     ldat d = fromIntegral $ length [ x | x <- dat, fst x == d] 
 
@@ -124,15 +125,16 @@ ord3Tup (_,_,a) (_,_,b)
   | a < b = LT
   | otherwise = EQ
 
-bestQuestion :: [(Desicion, [(String, Char)])] -> (String, [(Char, Desicion, Real)])
-bestQuestion dat = 
-  head $ sortBy ord3Tup map (
-        \(p, as) -> (q, map (
-                              \a -> let fdat = calcFactor [x | x <- dat, elem (q,a) (snd x)] in (q, fst fdat, snd fdat)
-                            ) as
-      ) qa_names
+bqmk_mapk :: [(Desicion, [(String, Char)])] -> String -> Char -> (Char, Desicion, Float)
+bqmk_mapk dat q a = let fdat = calcFactor [x | x <- dat, elem (q,a) (snd x)] in (a, fst fdat, snd fdat)
 
-makeTree :: [(Desicion, [(String, Char)])] -> [(String, Char)] -> Tree
+bq_mapk :: [(Desicion, [(String, Char)])] -> (String, [Char]) -> (String, [(Char, Desicion, Float)])
+bq_mapk dat (q, as) = (q, map (bqmk_mapk dat q) as)
+
+bestQuestion :: [(Desicion, [(String, Char)])] -> (String, [(Char, Desicion, Float)])
+bestQuestion dat = head (sortBy ord3Tup (map (bq_mapk dat) qa_names))
+
+makeTree :: [(Desicion, [(String, Char)])] -> [(String, Char)]
 makeTree dat mask = Question (q , map (\ x -> case x of
                                          (_,d,0) -> d
                                          (a,_,p) -> (a, makeTree dat (q,a):mask)
@@ -144,5 +146,5 @@ main = do
     contents <- readFile "agaricus-lepiota.data"
     let entries = splitData contents
     let dat = prepData entries
-    let tree= makeTree dat emptyTree []
+    let tree= makeTree dat []
     print $ show tree
