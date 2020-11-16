@@ -1,8 +1,8 @@
 import Data.List
 
-data Desicion = Edible | Poisnous
+data MClass = Edible | Poisnous deriving (Eq, Show)
 
-data Tree = Question (String , [(Char, Tree)]) | Desicion
+data Tree = Question (String , [(Char, Tree)]) | Decision MClass deriving (Show)
 
 question_names :: [String]
 question_names = [
@@ -83,12 +83,12 @@ answer_name = [
 --answer_name_taganswer_name_tag :: [[(String, Char)]]
 --answer_name_tag = map (\a -> map (\b -> (fst a, b)) (snd a)) (zip answer_name answer_tags)
     
-parseLine :: [Char] -> (Desicion, [(String, Char)])
+parseLine :: [Char] -> (MClass, [(String, Char)])
 parseLine (x:xs) 
   | x == 'e'  = (Edible,   zip question_names xs)
   | otherwise = (Poisnous, zip question_names xs)
 
-prepData :: [[Char]] -> [(Desicion, [(String, Char)])]
+prepData :: [[Char]] -> [(MClass, [(String, Char)])]
 prepData dat = map parseLine dat 
 
 -- Funcio: splitLine
@@ -113,33 +113,56 @@ splitData ss = map splitLine (lines ss)
 qa_names :: [(String, [Char])]
 qa_names = zip question_names answer_tags 
 
-calcFactor :: [(Desicion, [(String, Char)])] -> (Desicion, Float)
+calcFactor :: [(MClass, [(String, Char)])] -> (MClass, Float)
 calcFactor dat 
-  | ((length dat)/2) > (ldat Poisnous) = (Poisnous, (ldat Poisnous)/((ldat Edible)+(ldat Poisnous)))
+  | ((fromIntegral $ length dat)/2) > (ldat Poisnous) = (Poisnous, (ldat Poisnous)/((ldat Edible)+(ldat Poisnous)))
   | otherwise                          = (Edible,   (ldat Edible  )/((ldat Edible)+(ldat Poisnous)))
   where 
     ldat d = fromIntegral $ length [ x | x <- dat, fst x == d] 
 
-ord3Tup (_,_,a) (_,_,b)
-  | a > b = GT
-  | a < b = LT
-  | otherwise = EQ
 
-bqmk_mapk :: [(Desicion, [(String, Char)])] -> String -> Char -> (Char, Desicion, Float)
+--ordTup :: (MClass, [(String, Char)]) -> (MClass, [(String, Char)]) -> Eq
+ordTup (_, xs) (_, ys)
+  | calc xs > calc ys = GT
+  | calc xs < calc ys = LT
+  | otherwise = EQ
+  where 
+    calc [] = 0
+    calc ((_,_,c):cs) = c + calc cs
+
+
+bqmk_mapk :: [(MClass, [(String, Char)])] -> String -> Char -> (Char, MClass, Float)
 bqmk_mapk dat q a = let fdat = calcFactor [x | x <- dat, elem (q,a) (snd x)] in (a, fst fdat, snd fdat)
 
-bq_mapk :: [(Desicion, [(String, Char)])] -> (String, [Char]) -> (String, [(Char, Desicion, Float)])
+bq_mapk :: [(MClass, [(String, Char)])] -> (String, [Char]) -> (String, [(Char, MClass, Float)])
 bq_mapk dat (q, as) = (q, map (bqmk_mapk dat q) as)
 
-bestQuestion :: [(Desicion, [(String, Char)])] -> (String, [(Char, Desicion, Float)])
-bestQuestion dat = head (sortBy ord3Tup (map (bq_mapk dat) qa_names))
+bestQuestion :: [(MClass, [(String, Char)])] -> [(String, Char)] -> (String, [(Char, MClass, Float)])
+bestQuestion dat mask = head (sortBy ordTup (map (bq_mapk dat) [ x | x <- qa_names, not $ elem (fst x) (fst (unzip mask)) ]))
 
-makeTree :: [(Desicion, [(String, Char)])] -> [(String, Char)]
+makeTree :: [(MClass, [(String, Char)])] -> [(String, Char)] -> Tree
 makeTree dat mask = Question (q , map (\ x -> case x of
-                                         (_,d,0) -> d
-                                         (a,_,p) -> (a, makeTree dat (q,a):mask)
-                                         ) as )
-  where (q, as) = bestQuestion [ x | x <- dat, not $ elem False (map (flip elem (snd x)) mask) ]
+                                         (a,d,0) -> (a, Decision d)
+                                         (a,_,p) -> (a, makeTree dat ((q,a):mask))
+                                        ) as 
+                              )
+  where (q, as) = bestQuestion [ x | x <- dat, not $ elem False (map (flip elem (snd x)) mask) ] mask
+
+printa :: String -> (Char, Tree) -> IO ()
+printa s n = do
+  putStr   s
+  putStrLn ((fst n):[])
+  printt ('\t':s) (snd n) 
+
+printt :: String -> Tree -> IO ()
+printt s (Question (q , ts)) = do
+  putStr   s
+  putStrLn q
+  mapM_ (printa ('\t':s)) ts 
+
+printt s (Decision d) = do
+  putStr   s
+  putStrLn $ show d
 
 main :: IO ()
 main = do
@@ -147,4 +170,4 @@ main = do
     let entries = splitData contents
     let dat = prepData entries
     let tree= makeTree dat []
-    print $ show tree
+    printt "" tree
