@@ -1,6 +1,7 @@
 import Data.List
+import System.IO.getLine
 
-data MClass = Edible | Poisnous deriving (Eq, Show)
+data MClass = Edible | Poisnous | Indetermined deriving (Eq, Show)
 
 data Tree = Question (String , [(Char, Tree)]) | Decision MClass deriving (Show)
 
@@ -79,6 +80,14 @@ answer_name = [
     ["abundant","clustered","numerous","scattered","several","solitary"],
     ["grasses","leaves","meadows","paths","urban","waste","woods"]]
 
+get3rd :: (a,b,c) -> c
+get3rd (_,_,x) = x
+
+get2nd :: (a,b,c) -> b
+get2nd (_,x,_) = x
+
+get1st :: (a,b,c) -> a
+get1st (x,_,_) = x
 
 --answer_name_taganswer_name_tag :: [[(String, Char)]]
 --answer_name_tag = map (\a -> map (\b -> (fst a, b)) (snd a)) (zip answer_name answer_tags)
@@ -113,10 +122,12 @@ splitData ss = map splitLine (lines ss)
 qa_names :: [(String, [Char])]
 qa_names = zip question_names answer_tags 
 
-calcFactor :: [(MClass, [(String, Char)])] -> (MClass, Float)
+calcFactor :: [(MClass, [(String, Char)])] -> (MClass, Float, Float)
 calcFactor dat 
-  | ((fromIntegral $ length dat)/2) > (ldat Poisnous) = (Poisnous, (ldat Poisnous)/((ldat Edible)+(ldat Poisnous)))
-  | otherwise                          = (Edible,   (ldat Edible  )/((ldat Edible)+(ldat Poisnous)))
+  | ((fromIntegral $ length dat)/2) < (ldat Poisnous) 
+    = (Poisnous, (ldat Poisnous), (ldat Poisnous) + (ldat Edible))
+  | otherwise
+    = (Edible,   (ldat Edible  ), (ldat Poisnous) + (ldat Edible))
   where 
     ldat d = fromIntegral $ length [ x | x <- dat, fst x == d] 
 
@@ -127,12 +138,12 @@ ordTup (_, xs) (_, ys)
   | calc xs < calc ys = LT
   | otherwise = EQ
   where 
-    calc [] = 0
-    calc ((_,_,c):cs) = c + calc cs
+    calc [] = 1
+    calc ((_,_,c):cs) = (c) + calc cs
 
 
 bqmk_mapk :: [(MClass, [(String, Char)])] -> String -> Char -> (Char, MClass, Float)
-bqmk_mapk dat q a = let fdat = calcFactor [x | x <- dat, elem (q,a) (snd x)] in (a, fst fdat, snd fdat)
+bqmk_mapk dat q a = let fdat = calcFactor [x | x <- dat, elem (q,a) (snd x)] in (a, get1st fdat, ((get2nd fdat) / (fromIntegral $ length dat)))
 
 bq_mapk :: [(MClass, [(String, Char)])] -> (String, [Char]) -> (String, [(Char, MClass, Float)])
 bq_mapk dat (q, as) = (q, map (bqmk_mapk dat q) as)
@@ -140,34 +151,60 @@ bq_mapk dat (q, as) = (q, map (bqmk_mapk dat q) as)
 bestQuestion :: [(MClass, [(String, Char)])] -> [(String, Char)] -> (String, [(Char, MClass, Float)])
 bestQuestion dat mask = head (sortBy ordTup (map (bq_mapk dat) [ x | x <- qa_names, not $ elem (fst x) (fst (unzip mask)) ]))
 
+decideNode :: [(MClass, [(String, Char)])] -> [(String, Char)] -> String -> (Char, MClass, Float) -> (Char, Tree)
+decideNode _ _ _ (a,d,0) = (a, Decision d)
+decideNode dat mask q (a,d,_)
+  | ((length mask)+1) == (length qa_names) = (a, Decision d)
+  | otherwise                              = (a, makeTree dat ((q,a):mask))
+
 makeTree :: [(MClass, [(String, Char)])] -> [(String, Char)] -> Tree
-makeTree dat mask = Question (q , map (\ x -> case x of
-                                         (a,d,0) -> (a, Decision d)
-                                         (a,_,p) -> (a, makeTree dat ((q,a):mask))
-                                        ) as 
-                              )
+makeTree dat mask
+  | (length mask) == (length qa_names) = Decision Indetermined 
+  | otherwise = Question (q , map (decideNode dat mask q) as)
   where (q, as) = bestQuestion [ x | x <- dat, not $ elem False (map (flip elem (snd x)) mask) ] mask
 
 printa :: String -> (Char, Tree) -> IO ()
 printa s n = do
   putStr   s
   putStrLn ((fst n):[])
-  printt ('\t':s) (snd n) 
+  printt (' ':s) (snd n) 
 
 printt :: String -> Tree -> IO ()
 printt s (Question (q , ts)) = do
   putStr   s
   putStrLn q
-  mapM_ (printa ('\t':s)) ts 
+  mapM_ (printa (' ':s)) ts 
 
 printt s (Decision d) = do
   putStr   s
   putStrLn $ show d
 
+
+isAnswer :: String -> (String, Tree) -> Bool
+isAnswer a (g, _) = a == g
+
+guess :: Tree -> IO ()
+guess (Question t) = do
+  a <- readline (fst t ++ ": ")
+  let an = find (isAnswer a) (snd t)
+  case an of 
+    Nothing -> putStrLn "??" 
+    Just n   -> guess (snd n)
+
+guess (Decision d) = do
+  putStrLn "This mushrom is " ++ (show d)
+
 main :: IO ()
 main = do
+    putStrLn "Readig data file: agaricus-lepiota.dat"
     contents <- readFile "agaricus-lepiota.data"
+    putStrLn "Parsing file for computation."
     let entries = splitData contents
     let dat = prepData entries
+    putStrLn "Computring tree."
     let tree= makeTree dat []
+    putStrLn "Starting guess."
+    guess tree
+    _ <- readline "Enter to continue..."
+    putStrLn "Tree strocture"
     printt "" tree
