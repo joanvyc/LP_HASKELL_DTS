@@ -1,5 +1,4 @@
 import Data.List
-import System.IO.getLine
 
 data MClass = Edible | Poisnous | Indetermined deriving (Eq, Show)
 
@@ -124,7 +123,7 @@ qa_names = zip question_names answer_tags
 
 calcFactor :: [(MClass, [(String, Char)])] -> (MClass, Float, Float)
 calcFactor dat 
-  | ((fromIntegral $ length dat)/2) < (ldat Poisnous) 
+  | (ldat Edible) <= (ldat Poisnous) 
     = (Poisnous, (ldat Poisnous), (ldat Poisnous) + (ldat Edible))
   | otherwise
     = (Edible,   (ldat Edible  ), (ldat Poisnous) + (ldat Edible))
@@ -180,31 +179,33 @@ printt s (Decision d) = do
   putStrLn $ show d
 
 
-isAnswer :: String -> (String, Tree) -> Bool
-isAnswer a (g, _) = a == g
+isAnswer :: String -> (Char, Tree) -> Bool
+isAnswer (a:_) (g, _) = a == g
 
 guess :: Tree -> IO ()
 guess (Question t) = do
-  a <- readline (fst t ++ ": ")
+  putStrLn (fst t)
+  a <- getContents 
   let an = find (isAnswer a) (snd t)
   case an of 
     Nothing -> putStrLn "??" 
     Just n   -> guess (snd n)
 
 guess (Decision d) = do
-  putStrLn "This mushrom is " ++ (show d)
+  putStr "This mushrom is " 
+  putStrLn $ show d
 
 main :: IO ()
 main = do
     putStrLn "Readig data file: agaricus-lepiota.dat"
     contents <- readFile "agaricus-lepiota.data"
-    putStrLn "Parsing file for computation."
     let entries = splitData contents
     let dat = prepData entries
-    putStrLn "Computring tree."
+    seq dat (putStrLn "Parsing file for computation.")
     let tree= makeTree dat []
+    seq tree (putStrLn "Computing tree.")
     putStrLn "Starting guess."
     guess tree
-    _ <- readline "Enter to continue..."
-    putStrLn "Tree strocture"
-    printt "" tree
+
+    --putStrLn "Tree strocture"
+    --printt "" tree
