@@ -182,14 +182,13 @@ printt s (Decision d) = do
 isAnswer :: String -> (Char, Tree) -> Bool
 isAnswer (a:_) (g, _) = a == g
 
-guess :: Tree -> IO ()
-guess (Question t) = do
+guess :: Tree -> [String] -> IO ()
+guess (Question t) a:as = do
   putStrLn (fst t)
-  a <- getContents 
   let an = find (isAnswer a) (snd t)
   case an of 
     Nothing -> putStrLn "??" 
-    Just n   -> guess (snd n)
+    Just n   -> guess (snd n) as
 
 guess (Decision d) = do
   putStr "This mushrom is " 
@@ -205,7 +204,9 @@ main = do
     let tree= makeTree dat []
     seq tree (putStrLn "Computing tree.")
     putStrLn "Starting guess."
-    guess tree
+    a <- getContents 
+    let answers = lines a
+    guess tree answers
 
     --putStrLn "Tree strocture"
     --printt "" tree
