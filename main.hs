@@ -1,3 +1,4 @@
+
 import Data.List
 
 data MClass = Edible | Poisnous | Indetermined deriving (Eq, Show)
@@ -180,20 +181,32 @@ printt s (Decision d) = do
 
 
 isAnswer :: String -> (Char, Tree) -> Bool
+isAnswer [] _ = False
 isAnswer (a:_) (g, _) = a == g
 
-guess :: Tree -> [String] -> IO ()
-guess (Question t) a:as = do
-  putStrLn (fst t)
-  let an = find (isAnswer a) (snd t)
+guess :: Tree -> IO ()
+guess (Question t) = do
+  putStr (fst t)
+  a <- getLine
+  let an = find (isAnswer (a)) (snd t)
   case an of 
     Nothing -> putStrLn "??" 
-    Just n   -> guess (snd n) as
+    Just n   -> guess (snd n)
 
 guess (Decision d) = do
   putStr "This mushrom is " 
   putStrLn $ show d
 
+test :: IO () 
+test = do
+  putStrLn "What's your first name?"  
+  firstName <- getLine  
+  putStrLn "What's your last name?"  
+  lastName <- getLine  
+  putStrLn $ "hey " ++ firstName ++ " " ++ lastName ++ ", how are you?" 
+  test 
+
+{-
 main :: IO ()
 main = do
     putStrLn "Readig data file: agaricus-lepiota.dat"
@@ -202,11 +215,79 @@ main = do
     let dat = prepData entries
     seq dat (putStrLn "Parsing file for computation.")
     let tree= makeTree dat []
-    seq tree (putStrLn "Computing tree.")
+    --seq tree (putStrLn "Computing tree.")
     putStrLn "Starting guess."
-    a <- getContents 
-    let answers = lines a
-    guess tree answers
+    case tree of
+      (Question t) -> putStrLn $ fst  t
+      (Decision d) -> putStrLn $ show d
+    seq (guess tree) (putStrLn "Done")
 
     --putStrLn "Tree strocture"
     --printt "" tree
+
+-}
+
+isNotDecision :: Tree -> Bool
+isNotDecision (Decision _) = False
+isNotDecision _ = True
+
+{-
+guess :: Tree -> IO ()
+guess (Question t) = do
+  putStr (fst t)
+  a <- getLine
+  let an = find (isAnswer (a)) (snd t)
+  case an of 
+    Nothing -> putStrLn "??" 
+    Just n   -> guess (snd n)
+
+guess (Decision d) = do
+  putStr "This mushrom is " 
+  putStrLn $ show d
+-}
+
+showTree :: Tree -> String
+showTree (Question (q,_)) = q
+showTree (Decision    d) = show d
+
+nGuess :: Tree -> [Char] -> Tree
+nGuess (Question t) a = case find (isAnswer a) (snd t) of
+  Nothing -> Decision Indetermined
+  Just t  -> snd t
+
+takeWhileOneMore :: (a -> Bool) -> [a] -> [a]
+takeWhileOneMore p = foldr (\x ys -> if p x then x:ys else [x]) []
+
+zipIterate :: (a -> b -> b) -> [a] -> b -> [b]
+zipIterate _ [] b = b : []
+zipIterate f xs b = b : zipIterate f (tail xs) (f (head xs) b)
+
+main :: IO ()
+main = do 
+  dataInFile <- readFile "agaricus-lepiota.data"
+  let dataSet = (map parseLine . map (filter (/= ',')) . lines) dataInFile
+  let desTree = makeTree dataSet []
+  interact (
+    unlines .                                     -- Joins all output lines
+    map showTree .                                -- Translates tree to strign
+    takeWhileOneMore isNotDecision .              -- Takes trees 'til decision 
+    (flip $ zipIterate (flip nGuess)) desTree .   -- Adds next tree acordingly with input 
+    lines)
+
+{-  Generating decision tree -}
+{- Prediction based on the decision tree -}
+
+{-
+prepData :: [[Char]] -> [(MClass, [(String, Char)])]
+prepData dat = map parseLine dat 
+
+splitLine :: [Char] -> [Char]
+splitLine [] = []
+splitLine (x:xs) 
+  | x == ','  = splitLine xs
+  | otherwise = x : splitLine xs
+
+splitData :: String -> [[Char]]
+splitData ss = map splitLine (lines ss)
+
+-}
