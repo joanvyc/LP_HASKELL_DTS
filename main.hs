@@ -179,27 +179,32 @@ printt s (Decision d) = do
   putStr   s
   putStrLn $ show d
 
-
+{- chaks is the tuple (answer, Tree) corresponds with the given answer -} 
 isAnswer :: String -> (Char, Tree) -> Bool
 isAnswer [] _ = False
 isAnswer (a:_) (g, _) = a == g
 
+{- if the tree is NOT of type Decision is True, otherwise False -} 
 isNotDecision :: Tree -> Bool
 isNotDecision (Decision _) = False
 isNotDecision _ = True
 
+{- if the tree is a decision returns its string otherwise returns the question -} 
 showTree :: Tree -> String
 showTree (Question (q,_)) = q
 showTree (Decision    d) = show d
 
+{- given a tree and an answer returs the corresponding tree -} 
 nGuess :: Tree -> [Char] -> Tree
 nGuess (Question t) a = case find (isAnswer a) (snd t) of
   Nothing -> Decision Indetermined
   Just t  -> snd t
 
+{- like takeWhile but also keeps the element brekes the take -}
 takeWhileOneMore :: (a -> Bool) -> [a] -> [a]
 takeWhileOneMore p = foldr (\x ys -> if p x then x:ys else [x]) []
 
+{- iterate but the function takes a parameter from a list -}
 zipIterate :: (a -> b -> b) -> [a] -> b -> [b]
 zipIterate _ [] b = b : []
 zipIterate f xs b = b : zipIterate f (tail xs) (f (head xs) b)
