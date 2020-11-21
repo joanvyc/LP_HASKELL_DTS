@@ -161,7 +161,7 @@ makeTree :: [(MClass, [(String, Char)])] -> [(String, Char)] -> Tree
 makeTree dat mask
   | (length mask) == (length qa_names) = Decision Indetermined 
   | otherwise = Question (q , map (decideNode dat mask q) as)
-  where (q, as) = bestQuestion [ x | x <- dat, not $ elem False (map (flip elem (snd x)) mask) ] mask
+  where (q, as) = bestQuestion [ x | x <- dat, and (map (flip elem (snd x)) mask) ] mask
 
 printa :: String -> (Char, Tree) -> IO ()
 printa s n = do
@@ -216,9 +216,10 @@ main = do
   dataInFile <- readFile "agaricus-lepiota.data"
   let dataSet = (map parseLine . map (filter (/= ',')) . lines) dataInFile
   let desTree = makeTree dataSet []
-  interact (
+  interact $
     unlines .                                     -- Joins all output lines
     map showTree .                                -- Translates tree to strign
     takeWhileOneMore isNotDecision .              -- Takes trees 'til decision 
-    (flip $ zipIterate (flip nGuess)) desTree .   -- Adds next tree acordingly with input 
-    lines)
+    (scanl (nGuess) desTree) .
+    --(flip $ zipIterate (flip nGuess)) desTree .   -- Adds next tree acordingly with input 
+    lines
