@@ -204,8 +204,16 @@ ordTup2 (_, xs) (_, ys)
 
 
 {------------------------------------------------------------------------------
-\                                FUNCIONS UTILS                               /
+\                                   NUCLI                                     /
  -----------------------------------------------------------------------------}
+
+{-
+Per tal de determinar quina es la pregunta que te mes probabilitats d'encert
+crearem un vector que hi haura cada pregunta que queda per utilitzar, aquest
+llista tindra l'identificador de la pregunta, la opcio de comestibilitat cap a
+la que es decanta la pregunta i la probabilitat d'encert. Despres ordanarem 
+aquesta llista i ens quedarem el primer element
+-}
 
 {- Calcula el factor d'encert per a un conunt de dades. -}
 {- Sempre seleccionem la comestibilitat amb mes probabilitat d'encert. -}
@@ -218,44 +226,79 @@ calcFactor dat
   where 
     ldat d = fromIntegral $ length [ x | x <- dat, fst x == d] 
 
+{- 
+Per una pregunta concreta determina l'opcio preferida i en quin percentatge 
+apareix al subconjunt de dades que se li ha passat.
+-}
 recomptePerResposta :: PData -> String -> Char -> (Char, MClass, Float)
 recomptePerResposta dat q a = let fdat = calcFactor [x | x <- dat, elem (q,a) (snd x)] 
   in (a, get1st fdat, ((get2nd fdat) / (fromIntegral $ length dat)))
 
-bq_mapk :: PData -> (String, [Char]) -> (String, [(Char, MClass, Float)])
-bq_mapk dat (q, as) = (q, map (recomptePerResposta dat q) as)
+{- 
+Fem el recompte per a totes les prefuntes que queden per evaluar i les agupa a una 
+tupla String-recompte on la cadena de caracters identifica la pregunta i el recompte
+conte la resposta l'opcio preferida i la probabilitat d'encert.
+-}
+recompte :: PData -> (String, [Char]) -> (String, [(Char, MClass, Float)])
+recompte dat (q, as) = (q, map (recomptePerResposta dat q) as)
 
+{-
+Aquesta funcio determina quina es la millor pregunta per determinar la classe 
+dels bolets. Per aixo crea una llista ordenada per l'euristica i en retorna 
+el primer element.
+-}
 bestQuestion :: PData -> [(String, Char)] -> (String, [(Char, MClass, Float)])
 bestQuestion dat mask = head 
   $ sortBy ordTup2 
-  $ map (bq_mapk dat) [ x | x <- qa_names, not $ elem (fst x) (fst (unzip mask)) ]
+  $ map (recompte dat) [ x | x <- qa_names, not $ elem (fst x) (fst (unzip mask)) ]
 
+{- 
+Determina si el ja s'ha de determinar una decisio o si encara es pot precissar amb 
+mes preguntes, i retorna una Decision o un nou arbre en funcio d'aixo.
+-}
 decideNode :: PData -> [(String, Char)] -> String -> (Char, MClass, Float) -> (Char, Tree)
 decideNode _ _ _ (a,d,0) = (a, Decision d)
 decideNode dat mask q (a,d,_)
   | ((length mask)+1) == (length qa_names) = (a, Decision d)
   | otherwise                              = (a, makeTree dat ((q,a):mask))
 
+{-
+Donat un conjunt de dades crea un arbre de decisio a partir de la millor pregunta, i
+les probabilitats d'encert de cada resposta per seguir construint l'arbre.
+-}
 makeTree :: PData -> [(String, Char)] -> Tree
 makeTree dat mask
-  | (length mask) == (length qa_names) = Decision Indeterminat 
+  | (length mask) == (length qa_names) = Decision Indeterminat -- Si el programa funciona no s'hi arriba
   | otherwise = Question (q , map (decideNode dat mask q) as)
   where (q, as) = bestQuestion [ x | x <- dat, and (map (flip elem (snd x)) mask) ] mask
 
+
+{------------------------------------------------------------------------------
+\                               ENTRADA / SORTIDA                             /
+ -----------------------------------------------------------------------------}
+
+{-
+Es una crida co-recursiva amb printt. Imprimeix la resposta a una pregunta i crida
+a la funcio printt per seguir imprimint l'arbre
+-}
 printa :: String -> (Maybe String, Tree) -> IO ()
 printa s (Just n1, n2) = do
   putStr   s
-  putStrLn ('a':':':n1)
+  putStrLn (n1)
   printt (' ':s) n2 
 
 printa s (Nothing, _) = do
   putStr   s
   putStrLn "ERROR"
 
+{-
+Es una crida co-recursiva amb printa. Imprimeix una pregunta i crida recursiva a
+printa per imprimir la part corresponent a les respostes.
+-}
 printt :: String -> Tree -> IO ()
 printt s (Question (q , ts)) = do
   putStr   s
-  putStrLn ('?':':':q)
+  putStrLn (q)
   let qr = case lookup q qa_aLookup of Nothing -> []; Just n -> n;
   let ar = map (\a -> (lookup (fst a) qr, snd a)) ts
   mapM_ (printa (' ':s)) ar
@@ -264,44 +307,64 @@ printt s (Decision d) = do
   putStr   s
   putStrLn $ show d
 
-{- chaks is the tuple (answer, Tree) corresponds with the given answer -} 
+
+{- 
+Comproba que el primer parametre sigui un caracter (agafa el primer element, ignora la
+resta) (que correspont a l'etiqueta d'una resposta) sigui iguala a la resposta de la 
+tupla (segon parametre) (etiqueta de la pregunta)
+ -} 
 esResposta :: String -> (Char, Tree) -> Bool
 esResposta [] _ = False
 esResposta (a:_) (g, _) = a == g
 
-{- if the tree is NOT of type Decision is True, otherwise False -} 
+{- 
+Retorna cert si i nomes si l'arbre es una Decision
+-} 
 noEsDecisio :: Tree -> Bool
 noEsDecisio (Decision _) = False
 noEsDecisio _ = True
 
-{- if the tree is a decision returns its string otherwise returns the question -} 
-showArbre :: Tree -> String
-showArbre  (Decision Indeterminat) = "Hi ha hagut algun problema."
-showArbre (Question (q,_)) = "Which " ++ q ++ "?"
-showArbre  (Decision    d) = "Aquest es " ++ (show d)
+{- 
+Si un arbre es una Question retorna una pregunta en format cadena de caracters.
+-} 
+mostreArbre :: Tree -> String
+mostreArbre  (Decision Indeterminat) = "Hi ha hagut algun problema."
+mostreArbre         (Question (q,_)) = "Which " ++ q ++ "?"
+mostreArbre          (Decision    d) = "Aquest bolet es " ++ (show d)
 
-{- given a tree and an answer returs the corresponding tree -} 
+
+{------------------------------------------------------------------------------
+\                                PRINCIPAL                                    /
+ -----------------------------------------------------------------------------}
+
+{- 
+Donat un arbre (Question) i l'etiqueta a una resposta retorna el seguent arbre atractar.
+-} 
 seguentArbre :: Tree -> [Char] -> Tree
 seguentArbre (Question t) a = case find (esResposta a) (snd t) of
   Nothing -> Decision Indeterminat
   Just t  -> snd t
 
-
-{-  Generating decision tree -}
+{-  
+Genera un arbre a partir d'un conjunt de dades i l'imprimeix.
+-}
 generarArbre = do
   dadesAlFitcher <- readFile "agaricus-lepiota.data"
   let conjuntDeDades = (map parseLine . map (filter (/= ',')) . lines) dadesAlFitcher
   let arbreDecisions = makeTree conjuntDeDades []
   printt "" arbreDecisions
 
-{- Prediction based on the decision tree -}
+{- 
+Genera un dialeg per predir la comestibilitat d'un bolet a partir d'un conjunt de 
+dades.
+-}
 ferPrediccio = do
   dadesAlFitcher <- readFile "agaricus-lepiota.data"
   let conjuntDeDades = (map parseLine . map (filter (/= ',')) . lines) dadesAlFitcher
   let arbreDecisions = makeTree conjuntDeDades []
   interact $
     unlines .                                     -- Joins all output lines
-    map showArbre .                                -- Translates tree to strign
+    map mostreArbre .                                -- Translates tree to strign
     takeWhile1 noEsDecisio .              -- Takes trees 'til decision 
     scanl seguentArbre arbreDecisions .
     lines
