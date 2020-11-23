@@ -1,10 +1,50 @@
+{-
+Aquest programa forma part de un treball de l'assignatura Llenguatges de
+Programacio (LP) de la Facultat d'Informatica de Barcelona (FIB). I consisteix
+implementar la construccio i navegacio d'un arbre de decisions, en Haskell.
+-}
 
+{-
+Com que necesiterem ordenar llistes i buscar-hi elements incloem aquest modul
+(Data.List) que implementa les funcions sortBy i find (per ordenar i buscar, 
+respectivament)
+-}
 import Data.List
 
-data MClass = Edible | Poisnous | Indetermined deriving (Eq, Show)
+{-
+Com que per poder utilitzar les diferents funcionalitats del programa utilitzem 
+les opcions del programa (args) incloem el modul System.Environment. Tambe 
+utilitzarem el modul System.Exit per poder finalizar el programa amb codis 
+d'error.
+-}
+import System.Environment
+import System.Exit
 
-data Tree = Question (String , [(Char, Tree)]) | Decision MClass deriving (Show)
 
+{------------------------------------------------------------------------------
+\                             ABSTRACCIO DE DADES                             /
+ -----------------------------------------------------------------------------}
+
+{-
+Necesiterem identificar els diferents conceptes que hi ha en l'entorn del
+conjunt de dades que se'ns proporciona.  Per aixo s'ha definit el tipus de 
+dades MClass i s'han creat les funcions question_names, answer_name i 
+answer_tags.
+-} 
+
+{-
+El tipus de dades MClass es fa servir per representar la comestibilitat d'un 
+bolet, i te els estats Comestible, Verinos i Inteterminat. El cas Indeterminat
+s'utilitza per indicar que hi ha hagut un error, ja sigui per determinar l'estats
+o per navegar l'arbre.
+-}
+data MClass = Comestible | Verinos | Indeterminat deriving (Eq, Show)
+
+{-
+Per tenir les possibles preguntes que hi poden haver sobre un bolet, es 
+representa amb una llista, seguint l'ordre de la documentacio (que es pot
+trobar a: https://archive.ics.uci.edu/ml/datasets/Mushroom)
+-}
 question_names :: [String]
 question_names = [
     "cap-shape",
@@ -30,6 +70,12 @@ question_names = [
     "population",
     "habitat"]
     
+{- 
+Tambe necesitarem les possibles respostes a cada pregunta, per aixo definim una 
+llista on cada element es una llista amb les possibles etiquetes de resposta.
+Quan es fa referencia a etiqueta, tracta de l'abreviacio a un caracter d'una 
+resposta, i es unic per cada resposta d'una pregunta.
+-} 
 answer_tags :: [[Char]]
 answer_tags = [
   ['b','c','x','f','k','s'],
@@ -55,6 +101,11 @@ answer_tags = [
   ['a','c','n','s','v','y'],
   ['g','l','m','p','u','w','d']]
   
+{-
+Per tenir constancia de quina es realment la resposta, que es correspont a cada 
+etiqueta construim una llista de llistes amb les mateixes dimencions i el pateix 
+ordre que answer_tags. Que ens associen cada etiqueta amb la resposta.
+-} 
 answer_name :: [[String]]
 answer_name = [
     ["bell","conical","convex","flat","knobbed","sunken"],
@@ -80,62 +131,70 @@ answer_name = [
     ["abundant","clustered","numerous","scattered","several","solitary"],
     ["grasses","leaves","meadows","paths","urban","waste","woods"]]
 
-get3rd :: (a,b,c) -> c
-get3rd (_,_,x) = x
+{- 
+A mes a mes tambe ens poden ser utils combinacions d'aquestes llistes.
+-}
 
-get2nd :: (a,b,c) -> b
-get2nd (_,x,_) = x
-
-get1st :: (a,b,c) -> a
-get1st (x,_,_) = x
-
---answer_name_taganswer_name_tag :: [[(String, Char)]]
---answer_name_tag = map (\a -> map (\b -> (fst a, b)) (snd a)) (zip answer_name answer_tags)
-    
-parseLine :: [Char] -> (MClass, [(String, Char)])
-parseLine (x:xs) 
-  | x == 'e'  = (Edible,   zip question_names xs)
-  | otherwise = (Poisnous, zip question_names xs)
-
-prepData :: [[Char]] -> [(MClass, [(String, Char)])]
-prepData dat = map parseLine dat 
-
--- Funcio: splitLine
--- -----------------
--- Per parsejar l'entrada passa d'una linia a un array de chars
-
-splitLine :: [Char] -> [Char]
-splitLine [] = []
-splitLine (x:xs) 
-  | x == ','  = splitLine xs
-  | otherwise = x : splitLine xs
-
---
--- Funcio: splitDara
--- -----------------
--- Per parsejar l'entrada passa d'un unic String a una llista d'estrings separats
--- per salt de linia.
-
-splitData :: String -> [[Char]]
-splitData ss = map splitLine (lines ss)
-
+{-
+Aquesta estroctura que es simplement ajuntar les dues questions amb les respostes
+sera la principal estroctura que es fara servir per construir l'arbre.
+-}
 qa_names :: [(String, [Char])]
 qa_names = zip question_names answer_tags 
 
+{-
+Aquesta combinacio de preguntes i respostes ens servira com a taula de treduccio 
+par traduir de l'etiqueta al nom senser per a les respostes d'una pregunta.
+-}
+qa_aLookup :: [(String, [(Char, String)])]
 qa_aLookup = zip question_names $ zipWith zip answer_tags answer_name
 
-calcFactor :: [(MClass, [(String, Char)])] -> (MClass, Float, Float)
-calcFactor dat 
-  | (ldat Edible) <= (ldat Poisnous) 
-    = (Poisnous, (ldat Poisnous), (ldat Poisnous) + (ldat Edible))
-  | otherwise
-    = (Edible,   (ldat Edible  ), (ldat Poisnous) + (ldat Edible))
-  where 
-    ldat d = fromIntegral $ length [ x | x <- dat, fst x == d] 
+{-
+Per poder satisfer l'objectiu del programa cal construir un tipus de dades
+per fer l'arbre. En aquest programa l'anomenem Tree, i es pot satisfer de dues 
+maneres la primera son els nodes interns que anomenem Question's que estan formats 
+per una tupla String - Lista de (tupla Char-Tree) on la cadena de 
+caracters (Primer element de la tupla mes externa) es la pregunta, i la llista
+associa cada possible resposta (primer element de les tuples internes) amb un 
+arbre (segon element de les tuples internes). La segona manera de la que es pot 
+satisfer es amb una decissio que son les fulles de l'arbre.
+-}
+data Tree = Question (String , [(Char, Tree)]) | Decision MClass deriving (Show)
 
+{- 
+Per fer mes amena la llectura del codi la estroctura que conte les dades del fitxer 
+un cop parsejades construim aquest tipus de dades que anomenem PData (de Parsed Data)
+-}
+data PData = [(MClass, [(String, Char)])]
 
---ordTup :: (MClass, [(String, Char)]) -> (MClass, [(String, Char)]) -> Eq
-ordTup (_, xs) (_, ys)
+{------------------------------------------------------------------------------
+\                                FUNCIONS UTILS                               /
+ -----------------------------------------------------------------------------}
+
+{-
+Per tractar amb tuples de tres elements s'han implementat rest funcions. 
+get1sr i get2nd que son les analogues de fst i snd per tuples de dos elements, i 
+get3rd que retorna el tercer element de la tupla.
+-}
+
+{- Retorna el 1r element -}
+get1st :: (a,b,c) -> a
+get1st (x,_,_) = x
+
+{- Retorna el 2r element -}
+get2nd :: (a,b,c) -> b
+get2nd (_,x,_) = x
+
+{- Retorna el 3r element -}
+get3rd :: (a,b,c) -> c
+get3rd (_,_,x) = x
+
+{- like takeWhile but also keeps the element brekes the take -}
+takeWhile1 :: (a -> Bool) -> [a] -> [a]
+takeWhile1 p = foldr (\x ys -> if p x then x:ys else [x]) []
+
+--ordTup2 :: (MClass, [(String, Char)]) -> (MClass, [(String, Char)]) -> Eq
+ordTup2 (_, xs) (_, ys)
   | calc xs > calc ys = GT
   | calc xs < calc ys = LT
   | otherwise = EQ
@@ -144,24 +203,42 @@ ordTup (_, xs) (_, ys)
     calc ((_,_,c):cs) = (c) + calc cs
 
 
-bqmk_mapk :: [(MClass, [(String, Char)])] -> String -> Char -> (Char, MClass, Float)
-bqmk_mapk dat q a = let fdat = calcFactor [x | x <- dat, elem (q,a) (snd x)] in (a, get1st fdat, ((get2nd fdat) / (fromIntegral $ length dat)))
+{------------------------------------------------------------------------------
+\                                FUNCIONS UTILS                               /
+ -----------------------------------------------------------------------------}
 
-bq_mapk :: [(MClass, [(String, Char)])] -> (String, [Char]) -> (String, [(Char, MClass, Float)])
-bq_mapk dat (q, as) = (q, map (bqmk_mapk dat q) as)
+{- Calcula el factor d'encert per a un conunt de dades. -}
+{- Sempre seleccionem la comestibilitat amb mes probabilitat d'encert. -}
+calcFactor :: PData -> (MClass, Float, Float)
+calcFactor dat 
+  | (ldat Comestible) <= (ldat Verinos) 
+    = (Verinos, (ldat Verinos), (ldat Verinos) + (ldat Comestible))
+  | otherwise
+    = (Comestible,   (ldat Comestible  ), (ldat Verinos) + (ldat Comestible))
+  where 
+    ldat d = fromIntegral $ length [ x | x <- dat, fst x == d] 
 
-bestQuestion :: [(MClass, [(String, Char)])] -> [(String, Char)] -> (String, [(Char, MClass, Float)])
-bestQuestion dat mask = head (sortBy ordTup (map (bq_mapk dat) [ x | x <- qa_names, not $ elem (fst x) (fst (unzip mask)) ]))
+recomptePerResposta :: PData -> String -> Char -> (Char, MClass, Float)
+recomptePerResposta dat q a = let fdat = calcFactor [x | x <- dat, elem (q,a) (snd x)] 
+  in (a, get1st fdat, ((get2nd fdat) / (fromIntegral $ length dat)))
 
-decideNode :: [(MClass, [(String, Char)])] -> [(String, Char)] -> String -> (Char, MClass, Float) -> (Char, Tree)
+bq_mapk :: PData -> (String, [Char]) -> (String, [(Char, MClass, Float)])
+bq_mapk dat (q, as) = (q, map (recomptePerResposta dat q) as)
+
+bestQuestion :: PData -> [(String, Char)] -> (String, [(Char, MClass, Float)])
+bestQuestion dat mask = head 
+  $ sortBy ordTup2 
+  $ map (bq_mapk dat) [ x | x <- qa_names, not $ elem (fst x) (fst (unzip mask)) ]
+
+decideNode :: PData -> [(String, Char)] -> String -> (Char, MClass, Float) -> (Char, Tree)
 decideNode _ _ _ (a,d,0) = (a, Decision d)
 decideNode dat mask q (a,d,_)
   | ((length mask)+1) == (length qa_names) = (a, Decision d)
   | otherwise                              = (a, makeTree dat ((q,a):mask))
 
-makeTree :: [(MClass, [(String, Char)])] -> [(String, Char)] -> Tree
+makeTree :: PData -> [(String, Char)] -> Tree
 makeTree dat mask
-  | (length mask) == (length qa_names) = Decision Indetermined 
+  | (length mask) == (length qa_names) = Decision Indeterminat 
   | otherwise = Question (q , map (decideNode dat mask q) as)
   where (q, as) = bestQuestion [ x | x <- dat, and (map (flip elem (snd x)) mask) ] mask
 
@@ -187,26 +264,6 @@ printt s (Decision d) = do
   putStr   s
   putStrLn $ show d
 
-nombreEspais_ :: Int -> String -> (Int, String)
-nombreEspais_ n [] = (n, [])
-nombreEspais_ n s1@(s:ss)
-  | s == ' '  = nombreEspais_ (n+1) ss
-  | otherwise = (n, s1)
-
-nombreEspais :: String -> (Int, String)
-nombreEspais = nombreEspais_ 0
-
-{-
-construeixArbre :: Int -> [(Int, String)] -> Tree
-construeixArbre n (x:xs) 
-  | n == fst x = 
--}
-
-{-
-formatejarArbre :: [String] -> Tree
-formatejarArbre = construeixArbre . map nombreEspais 
--}
-
 {- chaks is the tuple (answer, Tree) corresponds with the given answer -} 
 esResposta :: String -> (Char, Tree) -> Bool
 esResposta [] _ = False
@@ -219,21 +276,18 @@ noEsDecisio _ = True
 
 {- if the tree is a decision returns its string otherwise returns the question -} 
 showArbre :: Tree -> String
-showArbre (Question (q,_)) = q
-showArbre (Decision    d) = show d
+showArbre  (Decision Indeterminat) = "Hi ha hagut algun problema."
+showArbre (Question (q,_)) = "Which " ++ q ++ "?"
+showArbre  (Decision    d) = "Aquest es " ++ (show d)
 
 {- given a tree and an answer returs the corresponding tree -} 
 seguentArbre :: Tree -> [Char] -> Tree
 seguentArbre (Question t) a = case find (esResposta a) (snd t) of
-  Nothing -> Decision Indetermined
+  Nothing -> Decision Indeterminat
   Just t  -> snd t
 
-{- like takeWhile but also keeps the element brekes the take -}
-takeWhile1 :: (a -> Bool) -> [a] -> [a]
-takeWhile1 p = foldr (\x ys -> if p x then x:ys else [x]) []
 
 {-  Generating decision tree -}
-generarArbre :: IO ()
 generarArbre = do
   dadesAlFitcher <- readFile "agaricus-lepiota.data"
   let conjuntDeDades = (map parseLine . map (filter (/= ',')) . lines) dadesAlFitcher
@@ -241,21 +295,31 @@ generarArbre = do
   printt "" arbreDecisions
 
 {- Prediction based on the decision tree -}
-{-
-ferPrediccio :: IO ()
 ferPrediccio = do
-  dataInFile <- readFile "arbre-de-decisions.dat"
-  let arbreDecisions = formatejarArbre . lines dataInFile
+  dadesAlFitcher <- readFile "agaricus-lepiota.data"
+  let conjuntDeDades = (map parseLine . map (filter (/= ',')) . lines) dadesAlFitcher
+  let arbreDecisions = makeTree conjuntDeDades []
   interact $
     unlines .                                     -- Joins all output lines
     map showArbre .                                -- Translates tree to strign
     takeWhile1 noEsDecisio .              -- Takes trees 'til decision 
     scanl seguentArbre arbreDecisions .
     lines
-      -}
 
-main :: IO ()
-main = do 
-  generarArbre
+exits = exitWith  ExitSuccess
+exite = exitWith (ExitFailure 1)
+usage = putStrLn "Usage: ./dts [-h|-d|-p file]           \n\
+                  \   -h        mostra aquest missatge   \n\
+                  \   -a        genera l'atbre i el treu \
+                                \ per sortida standard   \n\
+                  \   -p        permet fer una prediccio \
+                                \ a partir del dataset          \n\
+                  \ "
 
-  
+parse ["-h"] = usage        >> exits
+parse ["-a"] = generarArbre >> exits
+parse ["-p"] = ferPrediccio >> exits
+parse  (x:_) = putStrLn ("Opcio desconeguda: " ++ x) >> usage >> exite
+parse     [] = putStrLn ("No s'ha donat cap opcio.") >> usage >> exite
+
+main = getArgs >>= parse
