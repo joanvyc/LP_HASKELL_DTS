@@ -195,6 +195,9 @@ get3rd (_,_,x) = x
 takeWhile1 :: (a -> Bool) -> [a] -> [a]
 takeWhile1 p = foldr (\x ys -> if p x then x:ys else [x]) []
 
+swapTup :: (a,b) -> (b, a)
+swapTup (x, y) = (y, x)
+
 --ordTup2 :: (MClass, [(String, Char)]) -> (MClass, [(String, Char)]) -> Eq
 ordTup2 (_, xs) (_, ys)
   | calc xs > calc ys = GT
@@ -327,9 +330,8 @@ Comproba que el primer parametre sigui un caracter (agafa el primer element, ign
 resta) (que correspont a l'etiqueta d'una resposta) sigui iguala a la resposta de la 
 tupla (segon parametre) (etiqueta de la pregunta)
  -} 
-esResposta :: String -> (Char, Tree) -> Bool
-esResposta [] _ = False
-esResposta (a:_) (g, _) = a == g
+esResposta :: Char -> (Char, Tree) -> Bool
+esResposta a (g, _) = a == g
 
 {- 
 Retorna cert si i nomes si l'arbre es una Decision
@@ -351,11 +353,18 @@ mostreArbre          (Decision    d) = "Aquest bolet es " ++ (show d)
 \                                PRINCIPAL                                    /
  -----------------------------------------------------------------------------}
 
+tNomAEtiq :: String -> String -> Char
+tNomAEtiq q a =
+  case trad of
+   Nothing -> '\0'
+   Just t  -> t
+  where trad = lookup a (map swapTup (case lookup q qa_aLookup of Nothing -> []; Just n -> n;))
+
 {- 
 Donat un arbre (Question) i l'etiqueta a una resposta retorna el seguent arbre atractar.
 -} 
 seguentArbre :: Tree -> [Char] -> Tree
-seguentArbre (Question t) a = case find (esResposta a) (snd t) of
+seguentArbre (Question t) a = case find (esResposta $ tNomAEtiq (fst t) a) (snd t) of
   Nothing -> Decision Indeterminat
   Just t  -> snd t
 
@@ -377,9 +386,9 @@ ferPrediccio = do
   let conjuntDeDades = (map parseLine . map (filter (/= ',')) . lines) dadesAlFitcher
   let arbreDecisions = makeTree conjuntDeDades []
   interact $
-    unlines .                                     -- Joins all output lines
-    map mostreArbre .                                -- Translates tree to strign
-    takeWhile1 noEsDecisio .              -- Takes trees 'til decision 
+    unlines .                           -- Joins all output lines
+    map mostreArbre .                   -- Translates tree to strign
+    takeWhile1 noEsDecisio .            -- Takes trees 'til decision 
     scanl seguentArbre arbreDecisions .
     lines
 
@@ -390,13 +399,13 @@ usage = putStrLn "Usage: ./dts [-h|-d|-p file]           \n\
                   \   -a        genera l'atbre i el treu \
                                 \ per sortida standard   \n\
                   \   -p        permet fer una prediccio \
-                                \ a partir del dataset          \n\
+                                \ a partir del dataset (per defecte) \n\
                   \ "
 
 parse ["-h"] = usage        >> exits
 parse ["-a"] = generarArbre >> exits
 parse ["-p"] = ferPrediccio >> exits
+parse     [] = ferPrediccio >> exits
 parse  (x:_) = putStrLn ("Opcio desconeguda: " ++ x) >> usage >> exite
-parse     [] = putStrLn ("No s'ha donat cap opcio.") >> usage >> exite
 
 main = getArgs >>= parse
