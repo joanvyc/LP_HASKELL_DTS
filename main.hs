@@ -122,6 +122,8 @@ splitData ss = map splitLine (lines ss)
 qa_names :: [(String, [Char])]
 qa_names = zip question_names answer_tags 
 
+qa_aLookup = zip question_names $ zipWith zip answer_tags answer_name
+
 calcFactor :: [(MClass, [(String, Char)])] -> (MClass, Float, Float)
 calcFactor dat 
   | (ldat Edible) <= (ldat Poisnous) 
@@ -163,63 +165,97 @@ makeTree dat mask
   | otherwise = Question (q , map (decideNode dat mask q) as)
   where (q, as) = bestQuestion [ x | x <- dat, and (map (flip elem (snd x)) mask) ] mask
 
-printa :: String -> (Char, Tree) -> IO ()
-printa s n = do
+printa :: String -> (Maybe String, Tree) -> IO ()
+printa s (Just n1, n2) = do
   putStr   s
-  putStrLn ((fst n):[])
-  printt (' ':s) (snd n) 
+  putStrLn ('a':':':n1)
+  printt (' ':s) n2 
+
+printa s (Nothing, _) = do
+  putStr   s
+  putStrLn "ERROR"
 
 printt :: String -> Tree -> IO ()
 printt s (Question (q , ts)) = do
   putStr   s
-  putStrLn q
-  mapM_ (printa (' ':s)) ts 
+  putStrLn ('?':':':q)
+  let qr = case lookup q qa_aLookup of Nothing -> []; Just n -> n;
+  let ar = map (\a -> (lookup (fst a) qr, snd a)) ts
+  mapM_ (printa (' ':s)) ar
 
 printt s (Decision d) = do
   putStr   s
   putStrLn $ show d
 
+nombreEspais_ :: Int -> String -> (Int, String)
+nombreEspais_ n [] = (n, [])
+nombreEspais_ n s1@(s:ss)
+  | s == ' '  = nombreEspais_ (n+1) ss
+  | otherwise = (n, s1)
+
+nombreEspais :: String -> (Int, String)
+nombreEspais = nombreEspais_ 0
+
+{-
+construeixArbre :: Int -> [(Int, String)] -> Tree
+construeixArbre n (x:xs) 
+  | n == fst x = 
+-}
+
+{-
+formatejarArbre :: [String] -> Tree
+formatejarArbre = construeixArbre . map nombreEspais 
+-}
+
 {- chaks is the tuple (answer, Tree) corresponds with the given answer -} 
-isAnswer :: String -> (Char, Tree) -> Bool
-isAnswer [] _ = False
-isAnswer (a:_) (g, _) = a == g
+esResposta :: String -> (Char, Tree) -> Bool
+esResposta [] _ = False
+esResposta (a:_) (g, _) = a == g
 
 {- if the tree is NOT of type Decision is True, otherwise False -} 
-isNotDecision :: Tree -> Bool
-isNotDecision (Decision _) = False
-isNotDecision _ = True
+noEsDecisio :: Tree -> Bool
+noEsDecisio (Decision _) = False
+noEsDecisio _ = True
 
 {- if the tree is a decision returns its string otherwise returns the question -} 
-showTree :: Tree -> String
-showTree (Question (q,_)) = q
-showTree (Decision    d) = show d
+showArbre :: Tree -> String
+showArbre (Question (q,_)) = q
+showArbre (Decision    d) = show d
 
 {- given a tree and an answer returs the corresponding tree -} 
-nGuess :: Tree -> [Char] -> Tree
-nGuess (Question t) a = case find (isAnswer a) (snd t) of
+seguentArbre :: Tree -> [Char] -> Tree
+seguentArbre (Question t) a = case find (esResposta a) (snd t) of
   Nothing -> Decision Indetermined
   Just t  -> snd t
 
 {- like takeWhile but also keeps the element brekes the take -}
-takeWhileOneMore :: (a -> Bool) -> [a] -> [a]
-takeWhileOneMore p = foldr (\x ys -> if p x then x:ys else [x]) []
-
-{- iterate but the function takes a parameter from a list -}
-zipIterate :: (a -> b -> b) -> [a] -> b -> [b]
-zipIterate _ [] b = b : []
-zipIterate f xs b = b : zipIterate f (tail xs) (f (head xs) b)
+takeWhile1 :: (a -> Bool) -> [a] -> [a]
+takeWhile1 p = foldr (\x ys -> if p x then x:ys else [x]) []
 
 {-  Generating decision tree -}
+generarArbre :: IO ()
+generarArbre = do
+  dadesAlFitcher <- readFile "agaricus-lepiota.data"
+  let conjuntDeDades = (map parseLine . map (filter (/= ',')) . lines) dadesAlFitcher
+  let arbreDecisions = makeTree conjuntDeDades []
+  printt "" arbreDecisions
+
 {- Prediction based on the decision tree -}
-main :: IO ()
-main = do 
-  dataInFile <- readFile "agaricus-lepiota.data"
-  let dataSet = (map parseLine . map (filter (/= ',')) . lines) dataInFile
-  let desTree = makeTree dataSet []
+{-
+ferPrediccio :: IO ()
+ferPrediccio = do
+  dataInFile <- readFile "arbre-de-decisions.dat"
+  let arbreDecisions = formatejarArbre . lines dataInFile
   interact $
     unlines .                                     -- Joins all output lines
-    map showTree .                                -- Translates tree to strign
-    takeWhileOneMore isNotDecision .              -- Takes trees 'til decision 
-    (scanl (nGuess) desTree) .
-    --(flip $ zipIterate (flip nGuess)) desTree .   -- Adds next tree acordingly with input 
+    map showArbre .                                -- Translates tree to strign
+    takeWhile1 noEsDecisio .              -- Takes trees 'til decision 
+    scanl seguentArbre arbreDecisions .
     lines
+      -}
+
+main :: IO ()
+main = do 
+  generarArbre
+
+  
